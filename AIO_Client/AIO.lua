@@ -1110,18 +1110,28 @@ else
 
     -- Forces reload of UI for user on next action
     function AIO_HANDLERS.ForceReload(player)
-        local frame = CreateFrame("BUTTON")
-        frame:SetToplevel(true)
-        frame:SetFrameStrata("TOOLTIP")
-        frame:SetFrameLevel(100)
-        frame:SetAllPoints(WorldFrame)
-        -- frame.texture = frame:CreateTexture()
-        -- frame.texture:SetAllPoints(frame)
-        -- frame.texture:SetTexture(0.1, 0.1, 0.1, 0.5)
-        frame:SetScript("OnClick", ReloadUI)
-        print("AIO: Force reloading UI")
-        message("AIO: Force reloading UI")
-    end
+		print("AIO: Force reloading UI")
+		
+		if not StaticPopupDialogs["AIO_FORCE_RELOAD"] then
+			StaticPopupDialogs["AIO_FORCE_RELOAD"] = {
+				text = "AIO: Force reloading UI",
+				button1 = "OK",
+				OnAccept = function()
+					ReloadUI()
+				end,
+				OnShow = function(self)
+					self:ClearAllPoints()
+					self:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+				end,
+				timeout = 0,
+				whileDead = true,
+				hideOnEscape = true,
+				preferredIndex = 3,
+			}
+		end
+		
+		StaticPopup_Show("AIO_FORCE_RELOAD")
+	end
 
     -- Forces reset of UI for user on next action
     function AIO_HANDLERS.ForceReset(player)
