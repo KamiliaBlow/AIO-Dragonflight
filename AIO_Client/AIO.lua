@@ -1064,6 +1064,9 @@ else
         assert(loadstring(compressedcode, name))()
     end
     function AIO_HANDLERS.Init(player, version, N, addons, cached)
+        if AIO_INITED then
+            return
+        end
         if(AIO_VERSION ~= version) then
             AIO_INITED = true
             -- stop handling any incoming messages
@@ -1142,6 +1145,9 @@ else
     local frame = CreateFrame("FRAME") -- Need a frame to respond to events
     frame:RegisterEvent("ADDON_LOADED") -- Fired when saved variables are loaded
     frame:RegisterEvent("PLAYER_LOGOUT") -- Fired when about to log out
+    frame:RegisterEvent("PLAYER_ENTERING_WORLD") -- Fired when the player is actually in the world
+
+    local StartInitRequests = function() end
 
     -- message to request initialization of UI
     function frame:OnEvent(event, addon)
@@ -1150,6 +1156,7 @@ else
             local _,_,_, tocversion = GetBuildInfo()
             if tocversion and tocversion >= 40100 and C_ChatInfo.RegisterAddonMessagePrefix then
                 C_ChatInfo.RegisterAddonMessagePrefix("C"..AIO_Prefix)
+                C_ChatInfo.RegisterAddonMessagePrefix("S"..AIO_Prefix)
             end
 
             -- Our saved variables are ready at this point. If there is no save, they will be nil
@@ -1197,25 +1204,36 @@ else
 
             local initmsg = AIO.Msg():Add("AIO", "Init", AIO_VERSION, addons)
 
-            local reset = 1
-            local timer = reset
-            local function ONUPDATE(self, diff)
-                if AIO_INITED then
-                    self:SetScript("OnUpdate", nil)
-                    initmsg = nil
-                    reset = nil
-                    timer = nil
+            local requestsStarted = false
+            StartInitRequests = function(self)
+                if requestsStarted or AIO_INITED then
                     return
                 end
-                if timer < diff then
-                    initmsg:Send()
-                    timer = reset
-                    reset = reset * 1.5
-                else
-                    timer = timer - diff
+                requestsStarted = true
+                local reset = 1
+                local timer = reset
+                local function ONUPDATE(self, diff)
+                    if AIO_INITED then
+                        self:SetScript("OnUpdate", nil)
+                        initmsg = nil
+                        reset = nil
+                        timer = nil
+                        return
+                    end
+                    if timer < diff then
+                        initmsg:Send()
+                        timer = reset
+                        reset = reset * 1.5
+                    else
+                        timer = timer - diff
+                    end
                 end
+                self:SetScript("OnUpdate", ONUPDATE)
             end
-            frame:SetScript("OnUpdate", ONUPDATE)
+
+            if IsLoggedIn() then
+                StartInitRequests(frame)
+            end
             -- initmsg:Send()
         elseif event == "PLAYER_LOGOUT" then
             -- On logout we must store all global namespace to saved vars
@@ -1231,6 +1249,8 @@ else
             for k,v in ipairs(AIO_SAVEDFRAMES or {}) do
                 LibWindow.SavePosition(v)
             end
+        elseif event == "PLAYER_ENTERING_WORLD" then
+            StartInitRequests(self)
         end
     end
     frame:SetScript("OnEvent", frame.OnEvent)
